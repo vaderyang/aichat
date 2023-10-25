@@ -16,8 +16,7 @@ use crate::term;
 
 use anyhow::{Context, Result};
 use reedline::Signal;
-use std::borrow::Cow;
-use std::sync::Arc;
+use std::rc::Rc;
 
 pub const REPL_COMMANDS: [(&str, &str); 13] = [
     (".info", "Print system-wide information"),
@@ -42,7 +41,7 @@ impl Repl {
         print_now!("Welcome to aichat {}\n", env!("CARGO_PKG_VERSION"));
         print_now!("Type \".help\" for more information.\n");
         let mut already_ctrlc = false;
-        let handler = Arc::new(handler);
+        let handler = Rc::new(handler);
         loop {
             if abort.aborted_ctrld() {
                 break;
@@ -85,8 +84,8 @@ impl Repl {
         Ok(())
     }
 
-    fn handle_line(&mut self, handler: &Arc<ReplCmdHandler>, line: &str) -> Result<bool> {
-        let line = clean_multiline_symbols(line);
+    fn handle_line(&mut self, handler: &Rc<ReplCmdHandler>, line: &str) -> Result<bool> {
+        let line = line.trim().replace("\\\n", "\n");
         match parse_command(line.as_ref()) {
             Some((cmd, args)) => match cmd {
                 ".exit" => {
@@ -165,19 +164,10 @@ fn dump_repl_help() {
     print_now!(
         r###"{head}
 
-Type `{{` to enter the multi-line editing mode, type '}}' to exit the mode.
 Press Ctrl+C to abort readline, Ctrl+D to exit the REPL
 
 "###,
     );
-}
-
-fn clean_multiline_symbols(line: &str) -> Cow<str> {
-    let trimed_line = line.trim();
-    match trimed_line.chars().next() {
-        Some('{' | '[' | '(') => trimed_line[1..trimed_line.len() - 1].into(),
-        _ => Cow::Borrowed(line),
-    }
 }
 
 fn parse_command(line: &str) -> Option<(&str, Option<&str>)> {
